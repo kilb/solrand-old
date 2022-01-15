@@ -17,3 +17,6 @@ default = []
 
 [dependencies]
 anchor-lang = "0.20.1"
+anchor-spl = "0.20.1"
+# features = ["no-entrypoint"]
+chainlink = { git = "https://github.com/kilb/chainlink-solana", rev = "ba4c57d", package = "flux-aggregator", features = ["no-entrypoint"]}
