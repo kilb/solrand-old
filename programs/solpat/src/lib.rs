@@ -24,7 +24,6 @@ pub mod solpat {
         let next_round = &mut ctx.accounts.next_round;
         let pool = &mut ctx.accounts.pool;
         // start new round
-        next_round.round_id = pool.next_round;
         next_round.bonus = 0;
         next_round.start_time = now_ts;
         next_round.deposit_up = 0;
@@ -37,7 +36,8 @@ pub mod solpat {
     }
 
     pub fn lock_round(ctx: Context<LockRound>) -> ProgramResult {
-        let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        let price = 1; // for test
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let cur_round = &mut ctx.accounts.cur_round;
         let next_round = &mut ctx.accounts.next_round;
@@ -47,7 +47,6 @@ pub mod solpat {
         cur_round.lock_time = now_ts;
         cur_round.lock_price = price;
         // start new round
-        next_round.round_id = pool.next_round;
         next_round.bonus = 0;
         next_round.start_time = now_ts;
         next_round.deposit_up = 0;
@@ -60,7 +59,8 @@ pub mod solpat {
     }
 
     pub fn process_round(ctx: Context<ProcessRound>) -> ProgramResult {
-        let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        let price = 1; // for test
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let pre_round = &mut ctx.accounts.pre_round;
         let cur_round = &mut ctx.accounts.cur_round;
@@ -76,7 +76,6 @@ pub mod solpat {
         cur_round.lock_time = now_ts;
         cur_round.lock_price = price;
         // start new round
-        next_round.round_id = pool.next_round;
         next_round.bonus = 0;
         next_round.start_time = now_ts;
         next_round.deposit_up = 0;
@@ -89,7 +88,8 @@ pub mod solpat {
     }
 
     pub fn pause_round(ctx: Context<PauseRound>) -> ProgramResult {
-        let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        let price = 1; // for test
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let pre_round = &mut ctx.accounts.pre_round;
         let cur_round = &mut ctx.accounts.cur_round;
@@ -107,7 +107,8 @@ pub mod solpat {
     }
 
     pub fn close_round(ctx: Context<CloseRound>) -> ProgramResult {
-        let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
+        let price = 1; // for test
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let cur_round = &mut ctx.accounts.cur_round;
         let pool = &mut ctx.accounts.pool;
@@ -251,7 +252,7 @@ pub struct StartRound<'info> {
         seeds = [b"round", pool.key().as_ref(), pool.next_round.to_be_bytes().as_ref()],
         bump,
         payer = authority,
-        constraint = pool.latest_time + pool.duration < clock.unix_timestamp
+        constraint = pool.latest_time + pool.duration <= clock.unix_timestamp
     )]
     pub next_round: Box<Account<'info, Round>>,
     pub system_program: Program<'info, System>,
@@ -289,9 +290,10 @@ pub struct LockRound<'info> {
     )]
     pub next_round: Box<Account<'info, Round>>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-1).to_be_bytes().as_ref()],
         bump,
-        constraint = cur_round.start_time + pool.duration < clock.unix_timestamp,
+        constraint = cur_round.start_time + pool.duration <= clock.unix_timestamp,
         constraint = cur_round.status == 0,
     )]
     pub cur_round: Account<'info, Round>,
@@ -332,16 +334,18 @@ pub struct ProcessRound<'info> {
     )]
     pub next_round: Box<Account<'info, Round>>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-1).to_be_bytes().as_ref()],
         bump,
-        constraint = cur_round.start_time + pool.duration < clock.unix_timestamp,
+        constraint = cur_round.start_time + pool.duration <= clock.unix_timestamp,
         constraint = cur_round.status == 0,
     )]
     pub cur_round: Account<'info, Round>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-2).to_be_bytes().as_ref()],
         bump,
-        constraint = pre_round.lock_time + pool.duration < clock.unix_timestamp,
+        constraint = pre_round.lock_time + pool.duration <= clock.unix_timestamp,
         constraint = pre_round.status == 1,
     )]
     pub pre_round: Account<'info, Round>,
@@ -363,16 +367,18 @@ pub struct PauseRound<'info> {
     )]
     pub pool: Account<'info, Pool>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-1).to_be_bytes().as_ref()],
         bump,
-        constraint = cur_round.start_time + pool.duration < clock.unix_timestamp,
+        constraint = cur_round.start_time + pool.duration <= clock.unix_timestamp,
         constraint = cur_round.status == 0,
     )]
     pub cur_round: Account<'info, Round>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-2).to_be_bytes().as_ref()],
         bump,
-        constraint = pre_round.lock_time + pool.duration < clock.unix_timestamp,
+        constraint = pre_round.lock_time + pool.duration <= clock.unix_timestamp,
         constraint = pre_round.status == 1,
     )]
     pub pre_round: Account<'info, Round>,
@@ -392,9 +398,10 @@ pub struct CloseRound<'info> {
     )]
     pub pool: Account<'info, Pool>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), (pool.next_round-1).to_be_bytes().as_ref()],
         bump,
-        constraint = cur_round.lock_time + pool.duration < clock.unix_timestamp,
+        constraint = cur_round.lock_time + pool.duration <= clock.unix_timestamp,
         constraint = cur_round.status == 1,
     )]
     pub cur_round: Account<'info, Round>,
@@ -409,16 +416,19 @@ pub struct CloseRound<'info> {
 pub struct Bet<'info> {
     pub authority: Signer<'info>,
     #[account(
+        mut,
         seeds = [b"token", cur_round.key().as_ref()],
         bump,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(
+        mut,
         constraint = bet_amount > 0,
         constraint = token_user.amount >= bet_amount
     )]
     pub token_user: Box<Account<'info, TokenAccount>>,
     #[account(
+        mut,
         constraint = cur_round.status == 0,
     )]
     pub cur_round: Box<Account<'info, Round>>,
@@ -452,12 +462,15 @@ impl<'info> Bet<'info> {
 pub struct Claim<'info> {
     pub authority: Signer<'info>,
     #[account(
+        mut,
         seeds = [b"token", cur_round.key().as_ref()],
         bump,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_user: Box<Account<'info, TokenAccount>>,
     #[account(
+        mut,
         constraint = cur_round.status == 2,
     )]
     pub cur_round: Box<Account<'info, Round>>,
@@ -492,12 +505,15 @@ impl<'info> Claim<'info> {
 pub struct TakeFee<'info> {
     pub authority: Signer<'info>,
     #[account(
+        mut,
         seeds = [b"token", cur_round.key().as_ref()],
         bump,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_user: Box<Account<'info, TokenAccount>>,
     #[account(
+        mut,
         seeds = [b"round", pool.key().as_ref(), _round_id.to_be_bytes().as_ref()],
         bump,
         constraint = cur_round.status == 2,
@@ -531,6 +547,7 @@ pub struct UpdatePool<'info> {
     pub authority: Signer<'info>,
     pub new_auth: AccountInfo<'info>,
     #[account(
+        mut,
         has_one = authority,
     )]
     pub pool: Account<'info, Pool>,
@@ -548,6 +565,7 @@ pub struct FreeRound<'info> {
         close = authority
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
     pub token_user: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
@@ -600,7 +618,6 @@ pub struct Pool {
 #[account]
 #[derive(Default)]
 pub struct Round {
-    pub round_id: u64,
     // bonus = deposit_up + deposit_down - fee
     pub bonus: u64,
     pub start_time: i64,
