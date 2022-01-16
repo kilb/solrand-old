@@ -1,13 +1,14 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 #[program]
 pub mod solpat {
     use super::*;
-    pub fn create_pool(ctx: Context<CreatePool>, _pool_id: u64, duration: i64, fee_rate: u64) -> ProgramResult {
+    pub fn create_pool(ctx: Context<CreatePool>, pool_id: u64, duration: i64, fee_rate: u64) -> ProgramResult {
         let pool = &mut ctx.accounts.pool;
+        pool.pool_id = pool_id;
         pool.authority = ctx.accounts.authority.key();
         pool.token_program = ctx.accounts.token_program.key();
         pool.token_mint = ctx.accounts.token_mint.key();
@@ -116,7 +117,7 @@ pub mod solpat {
         cur_round.status = 2;
         cur_round.closed_time = now_ts;
         cur_round.closed_price = price;
-        cur_round.bonus = (cur_round.deposit_down + cur_round.deposit_up) * (10000 - pool.fee_rate) / 1000;
+        cur_round.bonus = (cur_round.deposit_down + cur_round.deposit_up) * (10000 - pool.fee_rate) / 10000;
         Ok(())
     }
 
@@ -151,10 +152,10 @@ pub mod solpat {
         user_bet.is_active = false;
         cur_round.accounts_amount -= 1;
         if amount > 0 {
-            let auth_key = cur_round.key();
+            let pool_id_bytes = ctx.accounts.pool.pool_id.to_be_bytes();
             let (_vault_authority, vault_authority_bump) =
-                Pubkey::find_program_address(&[b"token", auth_key.as_ref()], ctx.program_id);
-            let authority_seeds = [b"token", auth_key.as_ref(), &[vault_authority_bump]];
+                Pubkey::find_program_address(&[pool_id_bytes.as_ref()], ctx.program_id);
+            let authority_seeds = [pool_id_bytes.as_ref(), &[vault_authority_bump]];
             token::transfer(
                 ctx.accounts
                     .into_transfer_context()
@@ -167,37 +168,13 @@ pub mod solpat {
 
     pub fn take_fee(ctx: Context<TakeFee>, _round_id: u64) -> ProgramResult {
         let cur_round = &mut ctx.accounts.cur_round;
-        let amount = cur_round.bonus;
-        cur_round.bonus = 0;
-        let auth_key = cur_round.key();
-        let (_vault_authority, vault_authority_bump) =
-            Pubkey::find_program_address(&[b"token", auth_key.as_ref()], ctx.program_id);
-        let authority_seeds = [b"token", auth_key.as_ref(), &[vault_authority_bump]];
-        token::transfer(
-            ctx.accounts
-                .into_transfer_context()
-                .with_signer(&[&authority_seeds]),
-            amount,
-        )?;
-        Ok(())
-    }
-
-    pub fn update_pool(ctx: Context<UpdatePool>, fee_rate: u64, duration: i64) -> ProgramResult {
-        let pool = &mut ctx.accounts.pool;
-        pool.fee_rate = fee_rate;
-        pool.duration = duration;
-        pool.authority = ctx.accounts.new_auth.key();
-        Ok(())
-    }
-
-    pub fn free_round(ctx: Context<FreeRound>, _round_id: u64) -> ProgramResult {
-        let cur_round = &mut ctx.accounts.cur_round;
-        let auth_key = cur_round.key();
-        let (_vault_authority, vault_authority_bump) =
-            Pubkey::find_program_address(&[b"token", auth_key.as_ref()], ctx.program_id);
-        let authority_seeds = [b"token", auth_key.as_ref(), &[vault_authority_bump]];
-        let amount = ctx.accounts.token_vault.amount;
+        let amount = cur_round.deposit_down + cur_round.deposit_up - cur_round.bonus;
+        cur_round.status = 3;
         if amount > 0 {
+            let pool_id_bytes = ctx.accounts.pool.pool_id.to_be_bytes();
+            let (_vault_authority, vault_authority_bump) =
+                Pubkey::find_program_address(&[pool_id_bytes.as_ref()], ctx.program_id);
+            let authority_seeds = [pool_id_bytes.as_ref(), &[vault_authority_bump]];
             token::transfer(
                 ctx.accounts
                     .into_transfer_context()
@@ -207,15 +184,48 @@ pub mod solpat {
         }
         Ok(())
     }
+
+    pub fn update_pool(ctx: Context<UpdatePool>, duration: i64, fee_rate: u64) -> ProgramResult {
+        let pool = &mut ctx.accounts.pool;
+        pool.fee_rate = fee_rate;
+        pool.duration = duration;
+        pool.authority = ctx.accounts.new_auth.key();
+        pool.feed_account = ctx.accounts.feed_account.key();
+        Ok(())
+    }
+
+    pub fn free_round(ctx: Context<FreeRound>, _round_id: u64) -> ProgramResult {
+        let cur_round = &mut ctx.accounts.cur_round;
+        cur_round.status = 3;
+        let amount = ctx.accounts.token_vault.amount;
+        let pool_id_bytes = ctx.accounts.pool.pool_id.to_be_bytes();
+        let (_vault_authority, vault_authority_bump) =
+            Pubkey::find_program_address(&[pool_id_bytes.as_ref()], ctx.program_id);
+        let authority_seeds = [pool_id_bytes.as_ref(), &[vault_authority_bump]];
+        if amount > 0 {
+            token::transfer(
+                ctx.accounts
+                    .into_transfer_context()
+                    .with_signer(&[&authority_seeds]),
+                amount,
+            )?;
+        }
+        token::close_account(
+            ctx.accounts
+                .into_close_context()
+                .with_signer(&[&authority_seeds]),
+        )?;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
-#[instruction(_pool_id: u64)]
+#[instruction(pool_id: u64)]
 pub struct CreatePool<'info> {
     pub authority: Signer<'info>,
     #[account(
         init,
-        seeds = [_pool_id.to_be_bytes().as_ref()],
+        seeds = [pool_id.to_be_bytes().as_ref()],
         bump,
         payer = authority,
     )]
@@ -244,7 +254,7 @@ pub struct StartRound<'info> {
         bump,
         payer = authority,
         token::mint = token_mint,
-        token::authority = next_round,
+        token::authority = pool,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(
@@ -279,7 +289,7 @@ pub struct LockRound<'info> {
         bump,
         payer = authority,
         token::mint = token_mint,
-        token::authority = next_round,
+        token::authority = pool,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(
@@ -323,7 +333,7 @@ pub struct ProcessRound<'info> {
         bump,
         payer = authority,
         token::mint = token_mint,
-        token::authority = next_round,
+        token::authority = pool,
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(
@@ -384,7 +394,6 @@ pub struct PauseRound<'info> {
     pub pre_round: Account<'info, Round>,
     pub feed_account: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
     pub clock: Sysvar<'info, Clock>,
 }
 
@@ -407,7 +416,6 @@ pub struct CloseRound<'info> {
     pub cur_round: Account<'info, Round>,
     pub feed_account: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
     pub clock: Sysvar<'info, Clock>,
 }
 
@@ -450,17 +458,18 @@ impl<'info> Bet<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         let cpi_accounts = Transfer {
-            from: self.token_user.to_account_info().clone(),
-            to: self.token_vault.to_account_info().clone(),
-            authority: self.authority.to_account_info().clone(),
+            from: self.token_user.to_account_info(),
+            to: self.token_vault.to_account_info(),
+            authority: self.authority.to_account_info(),
         };
-        CpiContext::new(self.token_program.to_account_info().clone(), cpi_accounts)
+        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
     }
 }
 
 #[derive(Accounts)]
 pub struct Claim<'info> {
     pub authority: Signer<'info>,
+    pub pool: Box<Account<'info, Pool>>,
     #[account(
         mut,
         seeds = [b"token", cur_round.key().as_ref()],
@@ -471,7 +480,7 @@ pub struct Claim<'info> {
     pub token_user: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
-        constraint = cur_round.status == 2,
+        constraint = cur_round.status >= 2,
     )]
     pub cur_round: Box<Account<'info, Round>>,
     #[account(
@@ -492,11 +501,11 @@ impl<'info> Claim<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         let cpi_accounts = Transfer {
-            from: self.token_vault.to_account_info().clone(),
-            to: self.token_user.to_account_info().clone(),
-            authority: self.cur_round.to_account_info().clone(),
+            from: self.token_vault.to_account_info(),
+            to: self.token_user.to_account_info(),
+            authority: self.pool.to_account_info(),
         };
-        CpiContext::new(self.token_program.to_account_info().clone(), cpi_accounts)
+        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
     }
 }
 
@@ -534,11 +543,11 @@ impl<'info> TakeFee<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         let cpi_accounts = Transfer {
-            from: self.token_vault.to_account_info().clone(),
-            to: self.token_user.to_account_info().clone(),
-            authority: self.cur_round.to_account_info().clone(),
+            from: self.token_vault.to_account_info(),
+            to: self.token_user.to_account_info(),
+            authority: self.pool.to_account_info(),
         };
-        CpiContext::new(self.token_program.to_account_info().clone(), cpi_accounts)
+        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
     }
 }
 
@@ -551,6 +560,7 @@ pub struct UpdatePool<'info> {
         has_one = authority,
     )]
     pub pool: Account<'info, Pool>,
+    pub feed_account: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -562,7 +572,7 @@ pub struct FreeRound<'info> {
         mut,
         seeds = [b"token", cur_round.key().as_ref()],
         bump,
-        close = authority
+        // close = authority
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
@@ -571,7 +581,7 @@ pub struct FreeRound<'info> {
         mut,
         seeds = [b"round", pool.key().as_ref(), _round_id.to_be_bytes().as_ref()],
         bump,
-        constraint = cur_round.status == 2,
+        constraint = cur_round.status >= 2,
         constraint = cur_round.accounts_amount == 0,
         close = authority
     )]
@@ -590,17 +600,27 @@ impl<'info> FreeRound<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
         let cpi_accounts = Transfer {
-            from: self.token_vault.to_account_info().clone(),
-            to: self.token_user.to_account_info().clone(),
-            authority: self.cur_round.to_account_info().clone(),
+            from: self.token_vault.to_account_info(),
+            to: self.token_user.to_account_info(),
+            authority: self.pool.to_account_info(),
         };
-        CpiContext::new(self.token_program.to_account_info().clone(), cpi_accounts)
+        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
+    }
+
+    fn into_close_context(&self) -> CpiContext<'_, '_, '_, 'info, CloseAccount<'info>> {
+        let cpi_accounts = CloseAccount {
+            account: self.token_vault.to_account_info(),
+            destination: self.authority.to_account_info(),
+            authority: self.pool.to_account_info(),
+        };
+        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
     }
 }
 
 #[account]
 #[derive(Default)]
 pub struct Pool {
+    pub pool_id: u64,
     // Priviledged account.
     pub authority: Pubkey,
     pub fee_rate: u64,
@@ -628,7 +648,7 @@ pub struct Round {
     pub accounts_amount: u64,
     pub lock_price: u128,
     pub closed_price: u128,
-    // 0: active, 1: locked, 2: closed
+    // 0: active, 1: locked, 2: closed, 3: fee taked
     pub status: u8
 }
 
