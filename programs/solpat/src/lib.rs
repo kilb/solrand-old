@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer};
+use pyth_client::{load_price};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("G7quTdKqEdhPeXecrvHfXjrjRmN8rALfbGh5E2vaP1ZM");
 
 #[program]
 pub mod solpat {
@@ -37,8 +38,7 @@ pub mod solpat {
     }
 
     pub fn lock_round(ctx: Context<LockRound>) -> ProgramResult {
-        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
-        let price = 1; // for test
+        let price = load_price(&ctx.accounts.feed_account.try_borrow_data()?).unwrap().get_current_price().unwrap().price;
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let cur_round = &mut ctx.accounts.cur_round;
         let next_round = &mut ctx.accounts.next_round;
@@ -60,8 +60,7 @@ pub mod solpat {
     }
 
     pub fn process_round(ctx: Context<ProcessRound>) -> ProgramResult {
-        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
-        let price = 1; // for test
+        let price = load_price(&ctx.accounts.feed_account.try_borrow_data()?).unwrap().get_current_price().unwrap().price;
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let pre_round = &mut ctx.accounts.pre_round;
         let cur_round = &mut ctx.accounts.cur_round;
@@ -89,8 +88,7 @@ pub mod solpat {
     }
 
     pub fn pause_round(ctx: Context<PauseRound>) -> ProgramResult {
-        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
-        let price = 1; // for test
+        let price = load_price(&ctx.accounts.feed_account.try_borrow_data()?).unwrap().get_current_price().unwrap().price;
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let pre_round = &mut ctx.accounts.pre_round;
         let cur_round = &mut ctx.accounts.cur_round;
@@ -108,8 +106,7 @@ pub mod solpat {
     }
 
     pub fn close_round(ctx: Context<CloseRound>) -> ProgramResult {
-        // let price = chainlink::get_price(&chainlink::id(), &ctx.accounts.feed_account)?.unwrap();
-        let price = 1; // for test
+        let price = load_price(&ctx.accounts.feed_account.try_borrow_data()?).unwrap().get_current_price().unwrap().price;
         let now_ts = ctx.accounts.clock.unix_timestamp;
         let cur_round = &mut ctx.accounts.cur_round;
         let pool = &mut ctx.accounts.pool;
@@ -572,7 +569,6 @@ pub struct FreeRound<'info> {
         mut,
         seeds = [b"token", cur_round.key().as_ref()],
         bump,
-        // close = authority
     )]
     pub token_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
@@ -646,8 +642,8 @@ pub struct Round {
     pub deposit_up: u64,
     pub deposit_down: u64,
     pub accounts_amount: u64,
-    pub lock_price: u128,
-    pub closed_price: u128,
+    pub lock_price: i64,
+    pub closed_price: i64,
     // 0: active, 1: locked, 2: closed, 3: fee taked
     pub status: u8
 }

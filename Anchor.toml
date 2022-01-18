@@ -1,11 +1,11 @@
-[programs.localnet]
-solpat = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+[programs.devnet]
+solpat = "G7quTdKqEdhPeXecrvHfXjrjRmN8rALfbGh5E2vaP1ZM"
 
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "/home/ke/.config/solana/id.json"
 
 [scripts]

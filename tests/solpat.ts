@@ -12,10 +12,14 @@ describe('solpat', () => {
   // const connection = new Connection('https://rpc-mainnet-fork.dappio.xyz', { commitment, wsEndpoint: 'wss://rpc-mainnet-fork.dappio.xyz/ws' });
   // const options = anchor.Provider.defaultOptions();
   // const provider = new anchor.Provider(connection, wallet, options);
+  const connection = new web3.Connection(web3.clusterApiUrl("devnet"));
 
-  const priceFeedAccount = "FmAmfoyPXiA8Vhhe6MZTr3U6rZfEZ1ctEHay1ysqCqcf";
+  const priceFeedAccount = "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix";
   const AggregatorPublicKey = new PublicKey(priceFeedAccount);
-
+  const myMintAccount = "DCWj38SJkuZfy4UZDJkHsCEXZbJ3xBHQetw4oTX7z2uz";
+  const myMintPublickey = new PublicKey(myMintAccount);
+  const tokenUserAccount = "CMcmPxyd2m92f2GAUea1zTkparTZZQzkz8Fn2JFoAozB";
+  const token_user = new PublicKey(tokenUserAccount);
   // Configure the client to use the local cluster.
   const provider = anchor.Provider.env();
   anchor.setProvider(provider);
@@ -24,40 +28,42 @@ describe('solpat', () => {
   const program = anchor.workspace.Solpat as Program<Solpat>;
   const wallet = program.provider.wallet;
 
-  let myMint = null as Token;
+  // let myMint = null as Token;
   let pool_account_pda = null as PublicKey;
-  let token_user = null as PublicKey;
-  const admin = anchor.web3.Keypair.generate();
-  const user = anchor.web3.Keypair.generate();
-
-  it('Initial Test', async () => {
-    await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(admin.publicKey, 10000000000),
-      "processed"
-    );
+  // let myMint = await program.account.token.fetch(pool_account_pda);
   
-    await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(user.publicKey, 10000000000),
-      "processed"
-    );
-  
-    myMint = await Token.createMint(
-      provider.connection,
-      admin,
-      admin.publicKey,
-      null,
-      0,
-      TOKEN_PROGRAM_ID
-    );
+  // let token_user = null as PublicKey;
+  // const admin = anchor.web3.Keypair.generate();
+  // const user = anchor.web3.Keypair.generate();
 
-    token_user = await myMint.createAccount(wallet.publicKey);
-    await myMint.mintTo(
-      token_user,
-      admin.publicKey,
-      [admin],
-      1000000000
-    );
-  });
+  // it('Initial Test', async () => {
+  //   await provider.connection.confirmTransaction(
+  //     await provider.connection.requestAirdrop(admin.publicKey, 10000000000),
+  //     "processed"
+  //   );
+  
+  //   await provider.connection.confirmTransaction(
+  //     await provider.connection.requestAirdrop(user.publicKey, 10000000000),
+  //     "processed"
+  //   );
+  
+  //   myMint = await Token.createMint(
+  //     provider.connection,
+  //     admin,
+  //     admin.publicKey,
+  //     null,
+  //     0,
+  //     TOKEN_PROGRAM_ID
+  //   );
+
+  //   token_user = await myMint.createAccount(wallet.publicKey);
+  //   await myMint.mintTo(
+  //     token_user,
+  //     admin.publicKey,
+  //     [admin],
+  //     1000000000
+  //   );
+  // });
   
   it('Create Pool', async () => {
     let pool_id = new anchor.BN(1);
@@ -79,7 +85,7 @@ describe('solpat', () => {
           feedAccount: AggregatorPublicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
-          tokenMint: myMint.publicKey,
+          tokenMint: myMintPublickey,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         }
@@ -119,7 +125,7 @@ describe('solpat', () => {
           nextRound: next_round_pda,
           systemProgram: anchor.web3.SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
-          tokenMint: myMint.publicKey,
+          tokenMint: myMintPublickey,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         }
@@ -252,7 +258,7 @@ describe('solpat', () => {
           feedAccount: AggregatorPublicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
-          tokenMint: myMint.publicKey,
+          tokenMint: myMintPublickey,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         }
@@ -302,7 +308,7 @@ describe('solpat', () => {
           feedAccount: AggregatorPublicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
-          tokenMint: myMint.publicKey,
+          tokenMint: myMintPublickey,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         }
