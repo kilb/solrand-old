@@ -142,9 +142,19 @@ pub mod solpat {
         let cur_round = &mut ctx.accounts.cur_round;
         let user_bet = &mut ctx.accounts.user_bet;
         let amount = if cur_round.closed_price > cur_round.lock_price {
-            cur_round.bonus * user_bet.bet_up / cur_round.deposit_up 
+            if cur_round.deposit_up > 0 {
+                let amount = cur_round.bonus as u128 * user_bet.bet_up as u128 / cur_round.deposit_up as u128;
+                amount as u64
+            } else {
+                0
+            }
         } else {
-            cur_round.bonus * user_bet.bet_down / cur_round.deposit_down
+            if cur_round.deposit_down > 0 {
+                let amount = cur_round.bonus as u128 * user_bet.bet_down as u128 / cur_round.deposit_down as u128;
+                amount as u64
+            } else {
+                0
+            }
         };
         user_bet.is_active = false;
         cur_round.accounts_amount -= 1;

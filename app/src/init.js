@@ -2,16 +2,19 @@ const web3 =  require('@solana/web3.js');
 const splToken = require('@solana/spl-token');
 const {Keypair} = require("@solana/web3.js");
 
+function getKeypair() {
+    let data = fs.readFileSync('/home/ke/.config/solana/id.json', 'utf8');
+    let secretKey = Uint8Array.from(JSON.parse(data));
+    return Keypair.fromSecretKey(secretKey);
+}
+
 (async () => {
 
     //create connection to devnet
     const connection = new web3.Connection(web3.clusterApiUrl("devnet"));
     global.TextEncoder = require("util").TextEncoder; 
-    let secretKey = Uint8Array.from(
-        
-    );
     //generate keypair and airdrop 1000000000 Lamports (1 SOL)
-    let myKeypair = Keypair.fromSecretKey(secretKey);
+    let myKeypair = getKeypair();
     await connection.requestAirdrop(myKeypair.publicKey, 1000000000);
 
     console.log('solana public address: ' + myKeypair.publicKey.toBase58());
