@@ -1,60 +1,43 @@
+// 修改此处的环境变量，运行前先设置环境变量
 // export ANCHOR_WALLET=/home/ke/.config/solana/id.json
 // export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
 import * as anchor from '@project-serum/anchor';
 import { Program } from '@project-serum/anchor';
-import { Solpat } from '../../target/types/solpat';
-import { TOKEN_PROGRAM_ID, Token } from '@solana/spl-token';
-import NodeWallet from '@project-serum/anchor/dist/cjs/provider';
-import { PublicKey, Keypair, clusterApiUrl, SystemProgram, Transaction, Connection, Commitment } from '@solana/web3.js';
-// import idl from './idl.json';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { PublicKey } from '@solana/web3.js';
+
 const idl = require('./idl.json');
 
-const assert = require("assert");
-const fs = require('fs');
 const programID = new PublicKey(idl.metadata.address);
-const options = anchor.Provider.defaultOptions();
 
-function getKeypair() {
-  let data = fs.readFileSync('/home/ke/.config/solana/id.json', 'utf8');
-  let secretKey = Uint8Array.from(JSON.parse(data));
-  return Keypair.fromSecretKey(secretKey);
-}
-
-let myKey = getKeypair();
-
-const priceFeedAccount = "J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix";
-const AggregatorPublicKey = new PublicKey(priceFeedAccount);
-const myMintAccount = "DCWj38SJkuZfy4UZDJkHsCEXZbJ3xBHQetw4oTX7z2uz";
-const myMintPublickey = new PublicKey(myMintAccount);
+//修改此处的pool id 及对应的token地址
+let pool_id = new anchor.BN(6);
 const tokenUserAccount = "CMcmPxyd2m92f2GAUea1zTkparTZZQzkz8Fn2JFoAozB";
 const token_user = new PublicKey(tokenUserAccount);
-// Configure the client to use the local cluster.
-// const connection = new Connection(clusterApiUrl("devnet"));
-// const wallet = anchor.Provider.env();
 
-// const provider = new anchor.Provider(connection, wallet, options);
-// anchor.setProvider(provider);
-// anchor.setProvider(anchor.Provider.env());
 const provider = anchor.Provider.env();
 anchor.setProvider(provider);
-// anchor.setProvider(anchor.Provider.env());
+const wallet = provider.wallet;
+const program = new Program(idl, programID, provider);
 
-const program = anchor.workspace.Solpat as Program<Solpat>;
-const wallet = program.provider.wallet;
+let roundID = null as anchor.BN;
+let pool_account_pda;
 
-let pool_id = new anchor.BN(6);
-
-async function betRound(amount: number) {
+async function init() {
   const [_pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
     [pool_id.toBuffer("be", 8)],
     program.programId
   );
-  let pool_account_pda = _pool_account_pda;
-  //可以将round id记录在后台中，减少链查询
-  let poolAccount2 = await program.account.pool.fetch(pool_account_pda);
+  pool_account_pda = _pool_account_pda;
 
+  let poolAccount = await program.account.pool.fetch(pool_account_pda);
+  roundID = poolAccount.nextRound.subn(1);
+  return "Init OK";
+}
+
+async function betRound(flag: number, amount: number, round: anchor.BN) {
   const [cur_round_pda, _cur_round_bump] = await PublicKey.findProgramAddress(
-    [Buffer.from(anchor.utils.bytes.utf8.encode("round")), pool_account_pda.toBuffer(), poolAccount2.nextRound.subn(1).toBuffer("be", 8)],
+    [Buffer.from(anchor.utils.bytes.utf8.encode("round")), pool_account_pda.toBuffer(), round.toBuffer("be", 8)],
     program.programId
   );
 
@@ -69,8 +52,8 @@ async function betRound(amount: number) {
   );
 
   const tx = await program.rpc.bet(
-    new anchor.BN(10000), // bet amount
-    0,
+    new anchor.BN(amount), // bet amount
+    flag,
     {
       accounts: {
         authority: wallet.publicKey,
@@ -84,28 +67,12 @@ async function betRound(amount: number) {
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       }
     });
-  console.log("Your transaction signature", tx);
-  let userBet = await program.account.userBet.fetch(user_bet_pda);
-  assert.ok(
-    userBet.betDown.toNumber() == 10000
-  );
-  let roundAccount = await program.account.round.fetch(cur_round_pda);
-  assert.ok(
-    roundAccount.depositDown.toNumber() == 10000
-  );
-  return "OK"
+  return tx;
 }
 
-async function claimRound() {
-  //可以将round id记录在后台中，减少链查询
-  const [_pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
-    [pool_id.toBuffer("be", 8)],
-    program.programId
-  );
-  let pool_account_pda = _pool_account_pda;
-
+async function claimRound(round: anchor.BN) {
   const [claim_round_pda, _claim_round_bump] = await PublicKey.findProgramAddress(
-    [Buffer.from(anchor.utils.bytes.utf8.encode("round")), pool_account_pda.toBuffer(), new anchor.BN(2).toBuffer("be", 8)],
+    [Buffer.from(anchor.utils.bytes.utf8.encode("round")), pool_account_pda.toBuffer(), round.toBuffer("be", 8)],
     program.programId
   );
 
@@ -133,12 +100,49 @@ async function claimRound() {
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       }
     });
-  console.log("Your transaction signature", tx);
-  let roundAccount = await program.account.round.fetch(claim_round_pda);
-  console.log("roundAccount.accountsAmount", roundAccount.accountsAmount.toNumber());
-  return "OK";
+  return tx;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min)) + min; //The maximum is exclusive and the minimum is inclusive
 }
 
 
-betRound().then(console.log);
-claimRound().then(console.log);
+(async () => {
+  await init().then(console.log);
+  while(true) {
+    //本轮投注的上下限
+    let down = getRandomInt(8000, 12000);
+    let up = getRandomInt(8000, 12000);
+    while(true) {
+      let poolAccount = await program.account.pool.fetch(pool_account_pda);
+      let newRoundID = poolAccount.nextRound.subn(1);
+      if (!newRoundID.eq(roundID)) {
+        roundID = newRoundID;
+        break;
+      }
+      if(Math.random() > 0.5) {
+        // 共投注约15次，最小投注0.01u
+        let amount = getRandomInt(1, up / 7) * 10000;
+        await betRound(1, amount, roundID);
+        console.log("Bet UP: ", amount);
+      } else {
+        // 共投注约15次
+        let amount = getRandomInt(1, down / 7) * 10000;
+        await betRound(0, amount, roundID);
+        console.log("Bet Down: ", amount);
+      }
+      await sleep(10000);
+    }
+    await claimRound(roundID.subn(2));
+  }
+
+})();
