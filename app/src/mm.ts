@@ -155,9 +155,14 @@ function getRandomInt(min, max) {
         }
         console.log("Bet Down: ", amount);
       }
-      await sleep(10000);
+      await sleep(6000);
     }
-    await claimRound(roundID.subn(2));
+    try {
+      await claimRound(roundID.subn(2));
+      console.log("Claim Round: ", roundID.subn(2).toNumber());
+    } catch (err) {
+      console.log("Transaction error: ", err);
+    }
   }
 
 })();
