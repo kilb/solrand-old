@@ -115,13 +115,13 @@ function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min)) + min; //The maximum is exclusive and the minimum is inclusive
 }
 
-process.on('uncaughtException', (err, origin) => {
-  console.log(
-    process.stderr.fd,
-    `Caught exception: ${err}\n` +
-    `Exception origin: ${origin}`
-  );
-});
+// process.on('uncaughtException', (err, origin) => {
+//   console.log(
+//     process.stderr.fd,
+//     `Caught exception: ${err}\n` +
+//     `Exception origin: ${origin}`
+//   );
+// });
 
 (async () => {
   await init().then(console.log);
@@ -139,12 +139,20 @@ process.on('uncaughtException', (err, origin) => {
       if(Math.random() > 0.5) {
         // 共投注约15次，最小投注0.01u
         let amount = getRandomInt(1, up / 7) * 10000;
-        await betRound(1, amount, roundID);
+        try {
+          await betRound(1, amount, roundID);
+        } catch (err) {
+          console.log("Transaction error: ", err);
+        }
         console.log("Bet UP: ", amount);
       } else {
         // 共投注约15次
         let amount = getRandomInt(1, down / 7) * 10000;
-        await betRound(0, amount, roundID);
+        try {
+          await betRound(0, amount, roundID);
+        } catch (err) {
+          console.log("Transaction error: ", err);
+        }
         console.log("Bet Down: ", amount);
       }
       await sleep(10000);
