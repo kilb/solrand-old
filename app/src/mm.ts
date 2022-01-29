@@ -130,19 +130,24 @@ function getRandomInt(min, max) {
     let down = getRandomInt(8000, 12000);
     let up = getRandomInt(8000, 12000);
     while(true) {
-      let poolAccount = await program.account.pool.fetch(pool_account_pda);
-      let newRoundID = poolAccount.nextRound.subn(1);
-      if (!newRoundID.eq(roundID)) {
-        roundID = newRoundID;
-        break;
+      try {
+        let poolAccount = await program.account.pool.fetch(pool_account_pda);
+        let newRoundID = poolAccount.nextRound.subn(1);
+        if (!newRoundID.eq(roundID)) {
+          roundID = newRoundID;
+          break;
+        }
+      } catch (err) {
+        console.log("Get pool account error: ", err);
       }
+      
       if(Math.random() > 0.5) {
         // 共投注约15次，最小投注0.01u
         let amount = getRandomInt(1, up / 7) * 10000;
         try {
           await betRound(1, amount, roundID);
         } catch (err) {
-          console.log("Transaction error: ", err);
+          console.log("Bet up error: ", err);
         }
         console.log("Bet UP: ", amount);
       } else {
@@ -151,7 +156,7 @@ function getRandomInt(min, max) {
         try {
           await betRound(0, amount, roundID);
         } catch (err) {
-          console.log("Transaction error: ", err);
+          console.log("Bet down error: ", err);
         }
         console.log("Bet Down: ", amount);
       }
@@ -161,7 +166,7 @@ function getRandomInt(min, max) {
       await claimRound(roundID.subn(2));
       console.log("Claim Round: ", roundID.subn(2).toNumber());
     } catch (err) {
-      console.log("Transaction error: ", err);
+      console.log("Claim error: ", err);
     }
   }
 
