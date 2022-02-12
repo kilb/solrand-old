@@ -34,6 +34,10 @@ pub mod solpat {
         next_round.status = 0;
         pool.next_round += 1;
         pool.latest_time = now_ts;
+        emit!(DidStartRound {
+            start_time: now_ts,
+            round_id: pool.next_round - 1,
+        });
         Ok(())
     }
 
@@ -56,6 +60,11 @@ pub mod solpat {
         next_round.status = 0;
         pool.next_round += 1;
         pool.latest_time = now_ts;
+        emit!(DidLockRound {
+            lock_time: now_ts,
+            lock_price: price,
+            round_id: pool.next_round - 1,
+        });
         Ok(())
     }
 
@@ -84,6 +93,11 @@ pub mod solpat {
         next_round.status = 0;
         pool.next_round += 1;
         pool.latest_time = now_ts;
+        emit!(DidProcessRound {
+            lock_time: now_ts,
+            lock_price: price,
+            round_id: pool.next_round - 1,
+        });
         Ok(())
     }
 
@@ -135,6 +149,11 @@ pub mod solpat {
             ctx.accounts.into_transfer_context(),
             bet_amount,
         )?;
+        emit!(DidBet {
+            user_pubkey: ctx.accounts.authority.key(),
+            bet_amount: bet_amount,
+            bet_type: bet_type,
+        });
         Ok(())
     }
 
@@ -170,6 +189,10 @@ pub mod solpat {
                 amount,
             )?;
         }
+        emit!(DidClaim {
+            user_pubkey: ctx.accounts.authority.key(),
+            claim_amount: amount,
+        });
         Ok(())
     }
 
@@ -189,6 +212,9 @@ pub mod solpat {
                 amount,
             )?;
         }
+        emit!(DidTakeFee {
+            take_amount: amount,
+        });
         Ok(())
     }
 
@@ -665,4 +691,42 @@ pub struct UserBet {
     pub bet_up: u64,
     pub bet_down: u64,
     pub is_active: bool,
+}
+
+#[event]
+pub struct DidStartRound {
+    start_time: i64,
+    round_id: u64,
+}
+
+#[event]
+pub struct DidLockRound {
+    lock_time: i64,
+    lock_price: i64,
+    round_id: u64,
+}
+
+#[event]
+pub struct DidProcessRound {
+    lock_time: i64,
+    lock_price: i64,
+    round_id: u64,
+}
+
+#[event]
+pub struct DidBet {
+    user_pubkey: Pubkey,
+    bet_amount: u64,
+    bet_type: u8,
+}
+
+#[event]
+pub struct DidClaim {
+    user_pubkey: Pubkey,
+    claim_amount: u64,
+}
+
+#[event]
+pub struct DidTakeFee {
+    take_amount: u64,
 }

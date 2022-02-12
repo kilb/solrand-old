@@ -42,7 +42,7 @@ anchor.setProvider(provider);
 const program = anchor.workspace.Solpat as Program<Solpat>;
 const wallet = program.provider.wallet;
 
-let pool_id = new anchor.BN(6);
+let pool_id = new anchor.BN(7);
 
 async function createPool() {
   console.log("program id", program.programId.toBase58());

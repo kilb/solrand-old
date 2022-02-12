@@ -4,11 +4,14 @@ solpat = "Predi95J5ikTsG1v1ccrg8eDBUQaUr5Nkw7X4U5Fzbi"
 [programs.testnet]
 solpat = "Predi95J5ikTsG1v1ccrg8eDBUQaUr5Nkw7X4U5Fzbi"
 
+[programs.mainnet]
+solpat = "Predi95J5ikTsG1v1ccrg8eDBUQaUr5Nkw7X4U5Fzbi"
+
 [registry]
 url = "https://anchor.projectserum.com"
 
 [provider]
-cluster = "devnet"
+cluster = "mainnet"
 wallet = "/home/ke/.config/solana/id.json"
 
 [scripts]
