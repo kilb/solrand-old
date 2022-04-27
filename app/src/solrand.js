@@ -3,8 +3,11 @@
 const anchor = require('@project-serum/anchor');
 const { Program } = require('@project-serum/anchor');
 
-const { PublicKey, Keypair, clusterApiUrl, SystemProgram, Transaction, Connection, Commitment } = require('@solana/web3.js');
-global.TextEncoder = require("util").TextEncoder; 
+const { PublicKey, Keypair, clusterApiUrl} = require('@solana/web3.js');
+global.TextEncoder = require("util").TextEncoder;
+const SYSVAR_SLOT_HASHES_PUBKEY = new PublicKey(
+  'SysvarS1otHashes111111111111111111111111111',
+);
 function hexStringToByte(str) {
   if (!str) {
       return new Uint8Array();
@@ -90,19 +93,15 @@ async function createPool() {
 }
 
 async function commitRand(sec) {
-  const [_pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
+  const [pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
     [pool_id.toBuffer("be", 8)],
     program.programId
   );
-  let pool_account_pda = _pool_account_pda;
   console.log("pool_account_pda", pool_account_pda.toBase58());
 
   let poolAccount2 = await program.account.pool.fetch(pool_account_pda);
-  assert.ok(
-    poolAccount2.nextRound.toNumber() == 2
-  );
 
-  const [next_rand_pda, _next_rand_bump] = await PublicKey.findProgramAddress(
+  const [new_rand_pda, _new_rand_bump] = await PublicKey.findProgramAddress(
     [Buffer.from(anchor.utils.bytes.utf8.encode("rand")), pool_account_pda.toBuffer(), poolAccount2.length.toBuffer("be", 8)],
     program.programId
   );
@@ -115,22 +114,22 @@ async function commitRand(sec) {
       accounts: {
         authority: wallet.publicKey,
         pool: pool_account_pda,
-        nextRand: next_rand_pda,
+        newRand: new_rand_pda,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       }
     });
   console.log("Your transaction signature", tx);
-  let randAccount = await program.account.rand.fetch(next_rand_pda);
+  let randAccount = await program.account.rand.fetch(new_rand_pda);
   assert.ok(
     randAccount.commit == commit
   );
   return "OK"
 }
 
-async function LoadRand(randID) {
-  const [_pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
+async function loadRand(randID) {
+  const [pool_account_pda, _pool_account_bump] = await PublicKey.findProgramAddress(
     [pool_id.toBuffer("be", 8)],
     program.programId
   );
@@ -157,7 +156,7 @@ async function LoadRand(randID) {
         feedAccount8: AggregatorPublicKey8,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        slotHashes: anchor.web3.SYSVAR_SLOT_HASHES_PUBKEY,
+        slotHashes: SYSVAR_SLOT_HASHES_PUBKEY,
         clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
       }
     });
